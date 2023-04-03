@@ -7,8 +7,13 @@ import math
 
 import numpy as np
 from skimage.metrics import structural_similarity
-import phasepack.phasecong as pc
 import cv2
+
+# TODO: fix phasepack dependency problem
+try:
+    import phasepack.phasecong as pc
+except ImportError:
+    pc = None
 
 
 def _assert_image_shapes_equal(org_img: np.ndarray, pred_img: np.ndarray, metric: str):
@@ -24,12 +29,14 @@ def _assert_image_shapes_equal(org_img: np.ndarray, pred_img: np.ndarray, metric
     assert org_img.shape == pred_img.shape, msg
 
 
-def rmse(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095) -> float:
+def rmse(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095, strict: bool = True, **kwargs) -> float:
     """
     Root Mean Squared Error
 
     Calculated individually for all bands, then averaged
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "RMSE")
 
     org_img = org_img.astype(np.float32)
@@ -48,7 +55,7 @@ def rmse(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095) -> float:
     return np.mean(rmse_bands)
 
 
-def psnr(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095) -> float:
+def psnr(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095, strict: bool = True, **kwargs) -> float:
     """
     Peek Signal to Noise Ratio, implemented as mean squared error converted to dB.
 
@@ -58,6 +65,8 @@ def psnr(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095) -> float:
     When using 12-bit imagery MaxP is 4095, for 8-bit imagery 255. For floating point imagery using values between
     0 and 1 (e.g. unscaled reflectance) the first logarithmic term can be dropped as it becomes 0
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "PSNR")
 
     org_img = org_img.astype(np.float32)
@@ -94,7 +103,7 @@ def _gradient_magnitude(img: np.ndarray, img_depth: int):
 
 
 def fsim(
-    org_img: np.ndarray, pred_img: np.ndarray, T1: float = 0.85, T2: float = 160
+    org_img: np.ndarray, pred_img: np.ndarray, T1: float = 0.85, T2: float = 160, strict: bool = True, **kwargs
 ) -> float:
     """
     Feature-based similarity index, based on phase congruency (PC) and image gradient magnitude (GM)
@@ -119,6 +128,8 @@ def fsim(
         T1 -- constant based on the dynamic range of PC values
         T2 -- constant based on the dynamic range of GM values
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "FSIM")
     
     # if image is a gray image - add empty 3rd dimension for the .shape[2] to exist
@@ -193,13 +204,15 @@ def _edge_c(x: np.ndarray, y: np.ndarray):
     return numerator / denominator
 
 
-def issm(org_img: np.ndarray, pred_img: np.ndarray) -> float:
+def issm(org_img: np.ndarray, pred_img: np.ndarray, strict: bool = True, **kwargs) -> float:
     """
     Information theoretic-based Statistic Similarity Measure
 
     Note that the term e which is added to both the numerator as well as the denominator is not properly
     introduced in the paper. We assume the authers refer to the Euler number.
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "ISSM")
 
     # Variable names closely follow original paper for better readability
@@ -218,10 +231,12 @@ def issm(org_img: np.ndarray, pred_img: np.ndarray) -> float:
     return np.nan_to_num(numerator / denominator)
 
 
-def ssim(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095) -> float:
+def ssim(org_img: np.ndarray, pred_img: np.ndarray, max_p: int = 4095, strict: bool = True, **kwargs) -> float:
     """
     Structural Simularity Index
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "SSIM")
 
     return structural_similarity(org_img, pred_img, data_range=max_p, channel_axis=2)
@@ -236,11 +251,13 @@ def sliding_window(image: np.ndarray, stepSize: int, windowSize: int):
 
 
 def uiq(
-    org_img: np.ndarray, pred_img: np.ndarray, step_size: int = 1, window_size: int = 8
+    org_img: np.ndarray, pred_img: np.ndarray, step_size: int = 1, window_size: int = 8, strict: bool = True, **kwargs
 ):
     """
     Universal Image Quality index
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     # TODO: Apply optimization, right now it is very slow
     _assert_image_shapes_equal(org_img, pred_img, "UIQ")
 
@@ -293,10 +310,12 @@ def uiq(
     return np.mean(q_all)
 
 
-def sam(org_img: np.ndarray, pred_img: np.ndarray, convert_to_degree: bool = True):
+def sam(org_img: np.ndarray, pred_img: np.ndarray, convert_to_degree: bool = True, strict: bool = True, **kwargs):
     """
     Spectral Angle Mapper which defines the spectral similarity between two spectra
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "SAM")
 
     # Spectral angles are first computed for each pair of pixels
@@ -312,10 +331,12 @@ def sam(org_img: np.ndarray, pred_img: np.ndarray, convert_to_degree: bool = Tru
     return np.mean(np.nan_to_num(sam_angles))
 
 
-def sre(org_img: np.ndarray, pred_img: np.ndarray):
+def sre(org_img: np.ndarray, pred_img: np.ndarray, strict: bool = True, **kwargs):
     """
     Signal to Reconstruction Error Ratio
     """
+    if strict:
+        assert not kwargs, f"Unexpected arguments: {kwargs}. Set strict to False to disable this check"
     _assert_image_shapes_equal(org_img, pred_img, "SRE")
 
     org_img = org_img.astype(np.float32)
